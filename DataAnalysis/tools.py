@@ -145,6 +145,13 @@ def get_step_parameters(time, step_response, debug = False, debug_time = 0):
             print(chr(27)+"[0;34m"+"Parameters Found"+chr(27)+"[0m")
     return [k_td, k_ts, k_tf]
 
+def getLSR(x, y, i, j):
+    n = np.sum((x[i:j] - np.mean(x[i:j])) * (y[i:j] - np.mean(y[i:j])))
+    d = np.sum((x[i:j] - np.mean(x[i:j]))**2)
+    m = n / d
+    b = np.mean(y[i:j]) - m * np.mean(x[i:j])
+    return [m, b]
+
 if __name__ == '__main__':
     # TEST
     import pandas
