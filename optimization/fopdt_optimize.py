@@ -5,6 +5,7 @@ from scipy.integrate import odeint
 from scipy.optimize import minimize
 from scipy.interpolate import interp1d
 from tools import data2fopdt
+from tools import underSampling
 from timeit import default_timer as timer
 import sys
 sys.path.append("..")
@@ -28,21 +29,25 @@ taus = data['FOPDT_tau[s]'].values
 dead_time = data['FOPDT_deadTime[s]'].values
 
 # Fix data to match a first order system
-data_fit = data2fopdt(time, speed_cmd, speed)
-time_fit = data_fit[0]          # time [s]
-speed_cmd_fit = data_fit[1]     # input speed cmd to driver [cmd]
-speed_fit = data_fit[2]         # driver output motor speed [RPM]
+[time_fit, speed_cmd_fit, speed_fit] = data2fopdt(time, speed_cmd, speed) #[s, cmd, RPM]
 
 dfit = Monitor([time_fit, time, time_fit], [speed_cmd_fit,  speed, speed_fit], "Speed step response pre fitting", "speed[RPM, cmd]", "time[s]", sig_name = ["speed_cmd_fit", "speed", "speed_fit"])
 dfit.plot()
 dfit.show()
 
+# UnderSampling data to decrease optimizer execution time
+[time_us, speed_cmd_us, speed_us] = underSampling(time_fit, speed_cmd_fit, speed_fit, 80) #[s, cmd, RPM]
+
+dfit = Monitor([time_us, time, time_us], [speed_cmd_us,  speed, speed_us], "Speed step response underSampled", "speed[RPM, cmd]", "time[s]", marker="...", sig_name = ["speed_cmd_us", "speed", "speed_us"])
+dfit.plot()
+dfit.show()
+
 # Optimization variables
-u0 = speed_cmd_fit[0]           # Ininial input cmd value [cmd]
-yp0 = speed_fit[0]              # Initial output speed value [RPM]
-t = time_fit                    # time [s]
-u = speed_cmd_fit               # system input
-yp = speed_fit                  # system output
+u0 = speed_cmd_us[0]           # Ininial input cmd value [cmd]
+yp0 = speed_us[0]              # Initial output speed value [RPM]
+t = time_us                    # time [s]
+u = speed_cmd_us               # system input
+yp = speed_us                  # system output
 
 ns = len(t)                 # number of data point
 delta_t = t[1]-t[0]         # time step [s]
@@ -118,6 +123,9 @@ x0[0] = K_ini[j]        # Km
 x0[1] = taus[j]         # taum
 x0[2] = dead_time[j]    # deadtimem
 
+# Statistics
+global_time = timer()
+
 # show initial objective
 print(chr(27)+"[1;33m"+"Calculating Initial SSE Value ..."+chr(27)+"[0m")
 obj0 = objective(x0)
@@ -128,10 +136,13 @@ print(chr(27)+"[1;33m"+"Running Optimizer ..."+chr(27)+"[0m")
 solution = minimize(objective, x0, method = 'L-BFGS-B')
 x = solution.x
 objf = objective(x)
+global_time = timer()-global_time
 print(solution.message)
 
 # show final objective
 print(chr(27)+"[1;34m"+"Optimizer Finished"+chr(27)+"[0m")
+print("Global Optimization Time: %4.2f [s]" %(global_time))
+print("Iterations performed: %d" %(solution.nit))
 print("Final SSE Objective: " + str(objf))
 print("SSE Improvement: %4.1f" % (100*(obj0-objf)/obj0) + " %")
 print("K: %4.4f \t K0: %4.4f \t delta K: %4.4f" % (x[0], x0[0], x[0]-x0[0]))
