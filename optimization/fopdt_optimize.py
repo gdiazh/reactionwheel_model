@@ -11,9 +11,12 @@ import sys
 sys.path.append("..")
 from Visualization.monitor import Monitor
 
+# Input data parameters
+print(chr(27)+"[1;31m"+"FOPDT Optimization"+chr(27)+"[0m")
+file = input("File name (*.csv): ")
+file_cmd = input("File cmd: ")
 # read raw data
 path = "../../DRV10987_Firmware/ros_uart_controller/data/steps/"
-file = "2020-08-21 13-50-54[cmd-61.0].csv"
 data = pandas.read_csv(path+file)
 time = data['time[s]'].values
 speed_cmd = data['speed[cmd]'].values
@@ -112,7 +115,7 @@ def objective(x):
 
 # initial guesses
 print(chr(27)+"[1;31m"+"First Order Plus Dead Time Optimization"+chr(27)+"[0m")
-j = 1
+j = int(float(file_cmd))-60
 print("Initial Guess:")
 print("speed cmd: ", speeds_cmds[j])
 print("K: ", K_ini[j])
@@ -161,14 +164,15 @@ if SAVE_DATA:
     import datetime
     folder = "data/"
     Path(folder).mkdir(parents=True, exist_ok=True)
-    data = {"opt_success": solution.success,
+    data = {"gbl_time": global_time,
+            "opt_success": solution.success,
             "opt_iterations": solution.nit,
             "SSE_initial": obj0,
             "SSE_final": objf,
             "SSE_improvement": 100*(obj0-objf)/obj0,
-            "K0[RPM/cmd]": x0[0], "tau0[s]": x0[1], "deadtime[s]": x0[2],
+            "K0[RPM/cmd]": x0[0], "tau0[s]": x0[1], "deadtime0[s]": x0[2],
             "K[RPM/cmd]": x[0], "tau[s]": x[1], "deadtime[s]": x[2]}
-    df = pd.DataFrame(data, columns=["opt_success", "opt_iterations", "SSE_initial", "SSE_final", "SSE_improvement", "K0[RPM/cmd]", "tau0[s]", "deadtime[s]", "K[RPM/cmd]", "tau[s]", "deadtime[s]"], index=[0])
+    df = pd.DataFrame(data, columns=["gbl_time", "opt_success", "opt_iterations", "SSE_initial", "SSE_final", "SSE_improvement", "K0[RPM/cmd]", "tau0[s]", "deadtime[s]", "K[RPM/cmd]", "tau[s]", "deadtime[s]"], index=[0])
     test_name = "[optimal-fopdt-params-cmd"+str(speeds_cmds[j])+"]"
     date = datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S')
     path = Path(folder+date+test_name+".csv")
