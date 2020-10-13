@@ -23,7 +23,7 @@ class FOPDTMOTOR(object):
         self.m_k = [-0.0121, -0.0252, -0.0342]      # static gain LSR-m params by region [RPM/cmd2]
         self.b_k = [25.04, 26.84, 29.87]            # static gain LSR-b params by region [RPM/cmd]
         self.m_tau = [-0.0049, 0.0003, 0.0005]      # time constant LSR-m params by region [s/cmd]
-        self.b_tau = [3.95-2.7, 2.74-2.7, 2.86-2.7] # time constant LSR-b params by region [s]
+        self.b_tau = [3.95-3.0, 2.74-2.7, 2.86-2.8] # time constant LSR-b params by region [s]
         self.region = 0                             # operation region
         self.k = self.m_k[0]*0+self.b_k[0]          # Model static gain [RPM/cmd]
         self.tau = self.m_tau[0]*0+self.b_tau[0]    # Model time constant [s]
