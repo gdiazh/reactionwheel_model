@@ -5,7 +5,7 @@ from Visualization.monitor import Monitor
 
 # read data
 path = "processed_data/"
-file = "2020-08-29 14-56-29[0-511-1Delta[cmd]steps].csv"
+file = "2020-11-06 20-17-32[100-511-100[cmd]steps].csv"
 data = pandas.read_csv(path+file)
 
 speeds_cmds = data['speeds_cmds[cmd]'].values

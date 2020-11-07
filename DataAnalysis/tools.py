@@ -145,6 +145,114 @@ def get_step_parameters(time, step_response, debug = False, debug_time = 0):
             print(chr(27)+"[0;34m"+"Parameters Found"+chr(27)+"[0m")
     return [k_td, k_ts, k_tf]
 
+def get_stepini_parameters(time, step_response, debug = False, debug_time = 0):
+    N = len(step_response)      # Signal length
+    N1 = int(0.001*N)           # Window length
+    N2 = N1                     # Window shift
+    N3 = 0                      # Window shift
+    Nf = int((N-N1)/N2)         # Window iterations
+    STEADY_TOLERANCE = 31       #[RPM]
+    INITIAL_OVERFLOW = 15000    #[RPM]
+    MIN_RESPONSE = 2180         #[RPM]
+    MIN_ALIGN_TIME = 1          #[s]
+    STEP_TIME = 5               #[s]
+    FINAL_TIME = 12             #[s]
+    Ta_FOUND = False
+    Td_FOUND = False
+    Ts_FOUND = False
+    Tf_FOUND = False
+    Ti_FOUND = False
+    k_ta = 0                    # index of align time
+    k_td = 0                    # index of dead time
+    k_ts = 0                    # index of steady time
+    k_tf = 0                    # index of final time
+    k_ti = 0                    # index of initial value time
+
+    # Find Parameters
+    # for i in range(0, Nf):
+    i = 0
+    while ((i*N2+N3)+N1<N):
+        std = np.std(step_response[(i*N2+N3):(i*N2+N3)+N1])
+        mean = np.mean(step_response[(i*N2+N3):(i*N2+N3)+N1])
+        # find align time
+        if not(Ta_FOUND) and std<STEADY_TOLERANCE and step_response[(i*N2+N3)]<INITIAL_OVERFLOW and time[(i*N2+N3)]>MIN_ALIGN_TIME:
+            k_ta = (i*N2+N3)
+            Ta_FOUND = True
+            if debug:
+                print(chr(27)+"[1;31m"+"Align time found at: index "+chr(27)+"[0m", k_ta, chr(27)+"[1;31m"+", time "+chr(27)+"[0m", time[k_ta])
+            continue
+        # find dead time
+        if not(Td_FOUND) and Ta_FOUND and time[(i*N2+N3)]>STEP_TIME and mean>2186 and std>10:
+            k_td = (i*N2+N3)
+            Td_FOUND = True
+            N1 = int(0.02*N)        # Increase Window length
+            N3 = 10*N2              # Window shift
+            if debug:
+                print(chr(27)+"[1;31m"+"Dead time found at: index "+chr(27)+"[0m", k_td, chr(27)+"[1;31m"+", time "+chr(27)+"[0m", time[k_td])
+            continue
+        # find steady time and time[(i*N2+N3)]>STEP_TIME+1
+        if not(Ts_FOUND) and Td_FOUND and std<STEADY_TOLERANCE and MIN_RESPONSE<mean<INITIAL_OVERFLOW:
+            k_ts = (i*N2+N3)
+            Ts_FOUND = True
+            N1 = int(0.004*N)       # Decrease Window length
+            N3 = 10*N2              # Window shift
+            if debug:
+                print(chr(27)+"[1;31m"+"Steady time found at: index "+chr(27)+"[0m", k_ts, chr(27)+"[1;31m"+", time "+chr(27)+"[0m", time[k_ts])
+            continue
+        # find final time
+        if not(Tf_FOUND) and Ts_FOUND and time[(i*N2+N3)]>FINAL_TIME and (std>60 or mean<2186):
+            if mean<1:
+                k_tf = (i*N2+N3)-50
+            else:
+                k_tf = (i*N2+N3)
+            Tf_FOUND = True
+            N1 = int(0.03*N)        # Increase Window length
+            N3 = 10*N2              # Window shift
+            if debug:
+                print(chr(27)+"[1;31m"+"Final time found at: index "+chr(27)+"[0m", k_tf, chr(27)+"[1;31m"+", time "+chr(27)+"[0m", time[k_tf])
+            continue
+        # find initial value time
+        if not(Ti_FOUND) and Tf_FOUND and std<STEADY_TOLERANCE:
+            k_ti = (i*N2+N3)
+            Ti_FOUND = True
+            if debug:
+                print(chr(27)+"[1;31m"+"Initial value time found at: index "+chr(27)+"[0m", k_ti, chr(27)+"[1;31m"+", time "+chr(27)+"[0m", time[k_ti])
+            continue
+        # plot for debugging
+        if debug and time[(i*N2+N3)]>debug_time:
+            print(chr(27)+"[0;33m"+"Current Statistics:"+chr(27)+"[0m")
+            print("Window iteration: ", i, "/", Nf)
+            print("std: ", std)
+            print("mean: ", mean)
+            print("window_time[0]: ", time[(i*N2+N3)])
+            print("window_value[0]: ", step_response[(i*N2+N3)])
+            print("window_time[f]: ", time[(i*N2+N3)+N1])
+            print("window_value[f]: ", step_response[(i*N2+N3)+N1])
+            print("signal_size: ", N)
+            print("window_size: ", N1)
+            print("window_shift: ", N2)
+            stp = Monitor([time, time[(i*N2+N3):(i*N2+N3)+N1]], [step_response, step_response[(i*N2+N3):(i*N2+N3)+N1]], "Step response", "step[]", "time[s]", sig_name = ["raw", "Window"])
+            stp.plot()
+            stp.show()
+        i+=1
+    # Check
+    if not(Ta_FOUND):
+        print("No Align Time Found")
+        raise Exception('No Align Time Found')
+    elif not(Td_FOUND):
+        print("No Dead Time Found")
+        raise Exception('No Dead Time Found')
+    elif not(Ts_FOUND):
+        print("No Steady Time Found")
+        raise Exception('No Steady Time Found')
+    elif not(Tf_FOUND):
+        print("No Final Time Found")
+        raise Exception('No Final Time Found')
+    else:
+        if debug:
+            print(chr(27)+"[0;34m"+"Parameters Found"+chr(27)+"[0m")
+    return [k_td, k_ts, k_tf, k_ti]
+
 def getLSR(x, y, i, j):
     n = np.sum((x[i:j] - np.mean(x[i:j])) * (y[i:j] - np.mean(y[i:j])))
     d = np.sum((x[i:j] - np.mean(x[i:j]))**2)
@@ -156,19 +264,24 @@ if __name__ == '__main__':
     # TEST
     import pandas
 
-    path = "../../DRV10987_Firmware/ros_uart_controller/data/steps/"
+    path = "../../DRV10987_Firmware/ros_uart_controller/data/inisteps/"
     # files = path+"2020-08-21 13-50-43[cmd-60.0].csv"
-    files = path+"2020-08-21 13-50-54[cmd-61.0].csv"
+    # files = path+"2020-08-21 13-50-54[cmd-61.0].csv"
     # files = path+"2020-08-21 13-52-01[cmd-67.0].csv"
     # files = path+"2020-08-21 13-53-29[cmd-75.0].csv"
     # files = path+"2020-08-21 13-51-05[cmd-62.0].csv"
     # files = path+"2020-08-21 13-52-12[cmd-68.0].csv"
     # files = path+"2020-08-21 13-57-00[cmd-94.0].csv"
     # files = path+"2020-08-21 13-57-44[cmd-98.0].csv"
+
+    # files = path+"2020-10-13 21-51-51[511].csv"
+    files = path+"2020-10-13 21-45-33[120].csv"
+    # files = path+"2020-10-13 21-50-33[480].csv"
+
     data = pandas.read_csv(files)
     times = data['time[s]'].values
     speeds = data['speed[RPM]'].values
-    [k_td, k_ts, k_tf] = get_step_parameters(times, speeds, debug = True, debug_time = 5)
-    stp = Monitor([times, times[0:k_td], times[k_ts:k_tf]], [speeds, speeds[0:k_td], speeds[k_ts:k_tf]], "Step response", "speed[RPM]", "time[s]", sig_name = ["raw", "dead_time", "steady"])
+    [k_td, k_ts, k_tf] = get_stepini_parameters(times, speeds, debug = True, debug_time = 12.1)
+    stp = Monitor([times, times[k_td:k_ts], times[k_ts:k_tf], times[k_tf:k_ti]], [speeds, speeds[k_td:k_ts], speeds[k_ts:k_tf], speeds[i][k_tf:k_ti]], "Step response", "step[]", "time[s]", sig_name = ["step", "t_steady", "steady", "t_coasting"])
     stp.plot()
     stp.show()

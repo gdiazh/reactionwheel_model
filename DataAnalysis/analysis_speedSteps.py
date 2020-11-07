@@ -4,44 +4,51 @@ import numpy as np
 import sys
 sys.path.append("..")
 from Visualization.monitor import Monitor
-from tools import get_step_parameters
+from tools import get_step_parameters, get_stepini_parameters
 
 # read data
-path = "../../DRV10987_Firmware/ros_uart_controller/data/steps/"
+path = "../../DRV10987_Firmware/ros_uart_controller/data/inisteps/"
 files = glob.glob(path+"*.csv")
 
 data = [None]*len(files)
 for i in range(0, len(files)):
-	data[i] = pandas.read_csv(files[i])
+    data[i] = pandas.read_csv(files[i])
 
 times = [None]*len(data)
 speed_cmds = [None]*len(data)
 speeds = [None]*len(data)
 for i in range(0, len(data)):
-	times[i] = data[i]['time[s]'].values
-	speed_cmds[i] = data[i]['speed[cmd]'].values
-	speeds[i] = data[i]['speed[RPM]'].values
+    times[i] = data[i]['time[s]'].values
+    speed_cmds[i] = data[i]['speed[cmd]'].values
+    speeds[i] = data[i]['speed[RPM]'].values
 
 # Calc Speed steady state values
 ssvs_cmd = [None]*len(speeds)
 dead_time_cmd = [None]*len(speeds)
 taus_cmd = [None]*len(speeds)
+
+debug = True
 for i in range(0, len(speeds)):
-	# [s_offset, s_steady, t_steady] = find_step2(times[i], speeds[i], debug = True)
-	try:
-		[k_td, k_ts, k_tf] = get_step_parameters(times[i], speeds[i], debug = True, debug_time = 1.8)
-		# print(chr(27)+"[0;34m"+"Find parameters: "+chr(27)+"[0m", files[i])
-	except Exception as e:
-		print("Exception on file: ", files[i])
-		print(e)
-		k_td=0
-		k_ts=1
-		k_tf=2
-		# Exception('Fail getting parameters')
-	cmd_ = float(files[i][len(path)+24:-5])
-	ssvs_cmd[i] = [cmd_, np.mean(speeds[i][k_ts:k_tf])]
-	dead_time_cmd[i] = [cmd_, times[i][k_td]]
-	taus_cmd[i] = [cmd_, times[i][k_ts]]
+    # [s_offset, s_steady, t_steady] = find_step2(times[i], speeds[i], debug = True)
+    try:
+        [k_td, k_ts, k_tf, k_ti] = get_stepini_parameters(times[i], speeds[i], debug = False, debug_time = 13.4)
+        # print(chr(27)+"[0;34m"+"Find parameters: "+chr(27)+"[0m", files[i])
+    except Exception as e:
+        print("Exception on file: ", files[i])
+        print(e)
+        k_td=0
+        k_ts=1
+        k_tf=2
+        # Exception('Fail getting parameters')
+    cmd_ = float(files[i][len(path)+20:-5])
+    ssvs_cmd[i] = [cmd_, np.mean(speeds[i][k_ts:k_tf])]
+    dead_time_cmd[i] = [cmd_, times[i][k_td]-5]
+    taus_cmd[i] = [cmd_, times[i][k_ts]-times[i][k_td]]
+    if debug:
+        print("cmd: ", cmd_)
+        stp = Monitor([times[i], times[i][k_td:k_ts], times[i][k_ts:k_tf], times[i][k_tf:k_ti]], [speeds[i], speeds[i][k_td:k_ts], speeds[i][k_ts:k_tf], speeds[i][k_tf:k_ti]], "Step response", "step[]", "time[s]", sig_name = ["step", "t_steady", "steady", "t_coasting"])
+        stp.plot()
+        stp.show()
 
 ssvs_cmd.sort()
 dead_time_cmd.sort()
@@ -57,7 +64,7 @@ taus = taus_cmd[:, 1]
 K_ini = np.divide(ssvs, speeds_cmds)
 
 # Save data to csv
-SAVE_DATA = True
+SAVE_DATA = False
 if SAVE_DATA:
     import pandas as pd
     from pathlib import Path
@@ -66,10 +73,11 @@ if SAVE_DATA:
     Path(folder).mkdir(parents=True, exist_ok=True)
     data = {"speeds_cmds[cmd]": speeds_cmds, "steady_response[RPM]": ssvs, "FOPDT_k[RPM/cmd]": K_ini, "FOPDT_tau[s]": taus, "FOPDT_deadTime[s]": dead_time}
     df = pd.DataFrame(data, columns=["speeds_cmds[cmd]", "steady_response[RPM]", "FOPDT_k[RPM/cmd]", "FOPDT_tau[s]", "FOPDT_deadTime[s]"])
-    test_name = "[0-511-1Delta[cmd]steps]"
+    test_name = "[100-511-100[cmd]steps]"
     date = datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S')
     path = Path(folder+date+test_name+".csv")
     df.to_csv(path)
+    print("Data saved to: ", path)
 
 speed_mon = Monitor(times[0:5], speeds[0:5], "Motor speed steps", "w[RPM]", "time[s]", sig_name = ["s60", "s61", "s62", "s63", "s64", "s65", "s66"])
 speed_mon.plot()

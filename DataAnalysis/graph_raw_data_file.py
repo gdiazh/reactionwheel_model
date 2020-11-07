@@ -6,8 +6,8 @@ sys.path.append("..")
 from Visualization.monitor import Monitor
 
 # read data
-path = "../../DRV10987_Firmware/ros_uart_controller/data/signalm1/"
-name = "2020-10-12 20-39-44[model_signal]"
+path = "../../DRV10987_Firmware/ros_uart_controller/data/inisteps/"
+name = "2020-10-13 21-51-51[511]"
 file = path+name+".csv"
 data = pandas.read_csv(file)
 
